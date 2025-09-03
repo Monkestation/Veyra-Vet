@@ -1,0 +1,30 @@
+{
+  "name": "discord-vetting-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for manual age vetting with Veyra backend integration",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "vetting",
+    "byond",
+    "ss13"
+  ],
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "node-fetch": "^2.7.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "author": "dwasint",
+  "license": "MIT"
+}
