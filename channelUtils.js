@@ -49,7 +49,7 @@ async function sendVettingEmbed(channel, user, ckey, vettingId, config) {
       { name: 'User', value: `${user} (${user.tag})`, inline: true },
       { name: 'Ckey', value: `\`${ckey}\``, inline: true },
       { name: 'Requested', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
-      { name: 'Instructions', value: 'Please provide proof of age (government ID with personal info blacked out except birthdate) or other verification as requested by admins.', inline: false }
+      { name: 'Instructions', value: 'In your own words, what does “high roleplay” mean to you? Your character is offered something they really want, but it goes against their morals. How would you handle this situation in character? Give a short example of a character concept you would play here. What drives them? You’re in the middle of roleplay, and another player does something that breaks immersion (metagaming, powergaming, etc.). How do you respond? What’s the difference between your character’s knowledge and your own knowledge as a player? Can you give an example?', inline: false }
     )
     .setColor(0x3498db)
     .setThumbnail(user.displayAvatarURL())
