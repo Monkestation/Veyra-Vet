@@ -42,7 +42,7 @@ async function createVettingChannel(guild, user, ckey, config) {
  * Send the initial vetting embed with approve/deny buttons
  */
 async function sendVettingEmbed(channel, user, ckey, vettingId, config) {
-    const embed = new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setTitle('Age Vetting Request')
     .setDescription(`A new age vetting request has been submitted.`)
     .addFields(
