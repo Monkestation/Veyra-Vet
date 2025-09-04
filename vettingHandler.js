@@ -63,7 +63,7 @@ async function handleApproval(interaction, api, vetting, user, vettingId, active
     vetting.userId, 
     vetting.ckey, 
     { 
-      age_vetted: true, 
+      vetted: true, 
       vetted_by: interaction.user.id 
     }
   );
