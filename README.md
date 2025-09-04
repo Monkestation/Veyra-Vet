@@ -3,7 +3,7 @@ A Discord bot for handling the most commmon method of vetting for servers.
 
 ## Features
 
-- **Age Vetting Requests**: Users can submit vetting requests using their BYOND ckey
+- **Vetting Requests**: Users can submit vetting requests using their BYOND ckey
 - **Private Vetting Channels**: Each request creates a private channel for secure document submission
 - **Admin Controls**: Approve/deny buttons with automatic API updates
 - **Status Tracking**: Users can check their vetting request status
@@ -109,7 +109,7 @@ Ensure your Veyra API instance is configured with:
 
 ### User Commands
 
-- **`/vet <ckey>`**: Submit a new age vetting request
+- **`/vet <ckey>`**: Submit a new vetting request
   - Creates a private channel for document submission
   - Prevents duplicate requests
   - Checks if ckey is already verified

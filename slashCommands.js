@@ -7,7 +7,7 @@ function getSlashCommands() {
   return [
     new SlashCommandBuilder()
       .setName('vet')
-      .setDescription('Request age vetting for a ckey')
+      .setDescription('Request vetting for a ckey')
       .addStringOption(option =>
         option
           .setName('ckey')

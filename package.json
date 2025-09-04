@@ -1,7 +1,7 @@
 {
   "name": "discord-vetting-bot",
   "version": "1.0.0",
-  "description": "Discord bot for manual age vetting with Veyra backend integration",
+  "description": "Discord bot for manual vetting with Veyra backend integration",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

@@ -71,7 +71,7 @@ async function handleApproval(interaction, api, vetting, user, vettingId, active
   // Send success message
   const successEmbed = new EmbedBuilder()
     .setTitle('Vetting Approved')
-    .setDescription(`${user} has been approved for age vetting.`)
+    .setDescription(`${user} has been approved for vetting.`)
     .addFields(
       { name: 'Ckey', value: `\`${vetting.ckey}\``, inline: true },
       { name: 'Approved by', value: `${interaction.user}`, inline: true },
@@ -84,7 +84,7 @@ async function handleApproval(interaction, api, vetting, user, vettingId, active
 
   // Notify the user
   try {
-    await user.send(`Your age vetting request for ckey \`${vetting.ckey}\` has been approved!`);
+    await user.send(`Your vetting request for ckey \`${vetting.ckey}\` has been approved!`);
   } catch (error) {
     console.log('Could not DM user about approval');
   }
@@ -125,7 +125,7 @@ async function handleDenial(interaction, vetting, user, vettingId, activeVetting
 
   // Notify the user
   try {
-    await user.send(`Your age vetting request for ckey \`${vetting.ckey}\` has been denied. You may submit a new request with proper documentation if needed.`);
+    await user.send(`Your vetting request for ckey \`${vetting.ckey}\` has been denied. You may submit a new request with proper documentation if needed.`);
   } catch (error) {
     console.log('Could not DM user about denial');
   }

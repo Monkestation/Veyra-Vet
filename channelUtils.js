@@ -43,8 +43,8 @@ async function createVettingChannel(guild, user, ckey, config) {
  */
 async function sendVettingEmbed(channel, user, ckey, vettingId, config) {
   const embed = new EmbedBuilder()
-    .setTitle('Age Vetting Request')
-    .setDescription(`A new age vetting request has been submitted.`)
+    .setTitle('Vetting Request')
+    .setDescription(`A new vetting request has been submitted.`)
     .addFields(
         { name: 'User', value: `${user} (${user.tag})`, inline: true },
         { name: 'Ckey', value: `\`${ckey}\``, inline: true },

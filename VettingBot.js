@@ -5,7 +5,7 @@ const { handleVetCommand, handleVetStatusCommand, handleVetListCommand } = requi
 const { handleVettingDecision } = require('./vettingHandler');
 
 /**
- * Main Discord bot class for handling age vetting
+ * Main Discord bot class for handling vetting
  */
 class VettingBot {
   constructor(config) {
