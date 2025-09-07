@@ -43,28 +43,58 @@ class VeyraAPI {
   }
 
   /**
+   * Make an authenticated request with automatic token refresh
+   * @param {string} url - The URL to request
+   * @param {Object} options - Fetch options
+   * @returns {Promise<Response>} The response
+   */
+  async authenticatedRequest(url, options = {}) {
+    // Ensure we have a token
+    if (!this.token) {
+      await this.login();
+    }
+
+    // Add authorization header
+    const requestOptions = {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${this.token}`
+      }
+    };
+
+    let response = await fetch(url, requestOptions);
+
+    // Check if token expired (401 Unauthorized or 403 Forbidden)
+    if (response.status === 401 || response.status === 403) {
+      console.log('Token expired, refreshing...');
+      await this.login(); // Refresh the token
+      
+      // Retry the request with the new token
+      requestOptions.headers['Authorization'] = `Bearer ${this.token}`;
+      response = await fetch(url, requestOptions);
+    }
+
+    return response;
+  }
+
+  /**
    * Get verification data by ckey
    * @param {string} ckey - The BYOND ckey to lookup
    * @returns {Promise<Object|null>} Verification data or null if not found
    */
   async getVerificationByCkey(ckey) {
-    if (!this.token) await this.login();
-
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/verify/ckey/${ckey}`, {
-        headers: {
-          'Authorization': `Bearer ${this.token}`
-        }
-      });
-
+      const response = await this.authenticatedRequest(`${this.baseUrl}/api/v1/verify/ckey/${ckey}`);
+      
       if (response.status === 404) {
         return null;
       }
-
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch verification: ${response.status}`);
       }
-
+      
       return await response.json();
     } catch (error) {
       console.error('Error fetching verification:', error);
@@ -80,14 +110,11 @@ class VeyraAPI {
    * @returns {Promise<Object>} API response
    */
   async createOrUpdateVerification(discordId, ckey, verifiedFlags = {}) {
-    if (!this.token) await this.login();
-
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/verify`, {
+      const response = await this.authenticatedRequest(`${this.baseUrl}/api/v1/verify`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           discord_id: discordId,
@@ -96,11 +123,11 @@ class VeyraAPI {
           verification_method: 'manual_discord'
         })
       });
-
+      
       if (!response.ok) {
         throw new Error(`Failed to create/update verification: ${response.status}`);
       }
-
+      
       return await response.json();
     } catch (error) {
       console.error('Error creating/updating verification:', error);

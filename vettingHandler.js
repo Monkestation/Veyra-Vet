@@ -71,7 +71,7 @@ async function handleApproval(interaction, api, vetting, user, vettingId, active
   // Send success message
   const successEmbed = new EmbedBuilder()
     .setTitle('Vetting Approved')
-    .setDescription(`${user} has been approved for vetting.`)
+    .setDescription(`${user} has been approved for verification.`)
     .addFields(
       { name: 'Ckey', value: `\`${vetting.ckey}\``, inline: true },
       { name: 'Approved by', value: `${interaction.user}`, inline: true },
@@ -84,7 +84,7 @@ async function handleApproval(interaction, api, vetting, user, vettingId, active
 
   // Notify the user
   try {
-    await user.send(`Your vetting request for ckey \`${vetting.ckey}\` has been approved!`);
+    await user.send(`Your vetting request for ckey \`${vetting.ckey}\` has been approved, you can now run /verify {ckey} to verify your ID!`);
   } catch (error) {
     console.log('Could not DM user about approval');
   }
