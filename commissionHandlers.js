@@ -155,6 +155,54 @@ async function handleRenameCommissionCommand(interaction, config) {
 }
 
 /**
+ * Handle the /close-commission slash command
+ */
+async function handleCloseCommissionCommand(interaction) {
+  const userId = interaction.user.id;
+  const channelId = interaction.channel.id;
+
+  // Find the commission for this channel using storage
+  const commission = await commissionStorage.getByChannelId(channelId);
+
+  if (!commission) {
+    return interaction.reply({
+      content: 'This command can only be used in commission channels.',
+      ephemeral: true
+    });
+  }
+
+  // Check if user is the creator of the commission
+  if (commission.creatorId !== userId) {
+    return interaction.reply({
+      content: 'Only the commission creator can close the channel.',
+      ephemeral: true
+    });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    // Set commission status to inactive
+    await commissionStorage.setStatus(channelId, 'inactive');
+    
+    // Send notification to the channel
+    const embed = new EmbedBuilder()
+      .setTitle('Commission Closed')
+      .setDescription('This commission has been closed by the artist.')
+      .setColor(0xff6b6b)
+      .setTimestamp();
+
+    await interaction.channel.send({ embeds: [embed] });
+    
+    await interaction.editReply('Commission closed successfully. This channel will be cleaned up automatically during the next cleanup cycle.');
+
+  } catch (error) {
+    console.error('Error handling close-commission command:', error);
+    await interaction.editReply('An error occurred while closing the commission channel. Please try again.');
+  }
+}
+
+/**
  * Handle commission cleanup (inactive channels)
  */
 async function handleCommissionCleanup(interaction) {
@@ -336,6 +384,7 @@ module.exports = {
   handleCreateCommissionCommand,
   handleRepCommand,
   handleRenameCommissionCommand,
+  handleCloseCommissionCommand,
   handleCommissionCleanup,
   handleRemoveRep,
   createCommissionChannel,

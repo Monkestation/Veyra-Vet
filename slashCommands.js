@@ -24,7 +24,7 @@ function getSlashCommands() {
       .setName('vetlist')
       .setDescription('List all pending vetting requests (Admin only)'),
 
-    // New commission commands
+    // Commission commands
     new SlashCommandBuilder()
       .setName('create-commission')
       .setDescription('Create a new art commission channel')
@@ -49,7 +49,11 @@ function getSlashCommands() {
           .setDescription('New name for your commission channel')
           .setRequired(true)
           .setMaxLength(50)
-      )
+      ),
+
+    new SlashCommandBuilder()
+      .setName('close-commission')
+      .setDescription('Close your commission channel (creator only)')
   ];
 }
 
@@ -62,12 +66,12 @@ async function registerSlashCommands(config) {
 
   try {
     console.log('Started refreshing application (/) commands.');
-
+    
     await rest.put(
       Routes.applicationGuildCommands(config.discord.clientId, config.discord.guildId),
       { body: commands }
     );
-
+    
     console.log('Successfully reloaded application (/) commands.');
   } catch (error) {
     console.error('Error registering slash commands:', error);

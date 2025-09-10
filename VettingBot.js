@@ -3,7 +3,7 @@ const VeyraAPI = require('./VeyraAPI');
 const { registerSlashCommands } = require('./slashCommands');
 const { handleVetCommand, handleVetStatusCommand, handleVetListCommand } = require('./commandHandlers');
 const { handleVettingDecision } = require('./vettingHandler');
-const { handleCreateCommissionCommand, handleRepCommand, handleRenameCommissionCommand } = require('./commissionHandlers');
+const { handleCreateCommissionCommand, handleRepCommand, handleRenameCommissionCommand, handleCloseCommissionCommand } = require('./commissionHandlers');
 // Import storage systems
 const { vettingStorage, commissionStorage } = require('./persistantStorage');
 
@@ -120,6 +120,9 @@ class VettingBot {
           break;
         case 'rename-commission':
           await handleRenameCommissionCommand(interaction, this.config);
+          break;
+        case 'close-commission':
+          await handleCloseCommissionCommand(interaction);
           break;
 
         // Admin commands
