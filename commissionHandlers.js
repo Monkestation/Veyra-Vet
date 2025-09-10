@@ -135,7 +135,7 @@ async function handleRenameCommissionCommand(interaction, config) {
 
   try {
     // Rename the channel
-    const formattedName = `commission-${newName}`;
+    const formattedName = `${newName}`;
     await interaction.channel.setName(formattedName);
     
     // Update the commission data using storage method
@@ -277,7 +277,7 @@ async function handleRemoveRep(interaction, targetUserId) {
  * Create a commission channel for the user
  */
 async function createCommissionChannel(guild, user, channelName, config) {
-  const formattedChannelName = `commission-${channelName}`;
+  const formattedChannelName = `${channelName}`;
   
   const channel = await guild.channels.create({
     name: formattedChannelName,
