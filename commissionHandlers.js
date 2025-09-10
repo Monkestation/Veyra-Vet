@@ -188,13 +188,13 @@ async function handleCloseCommissionCommand(interaction) {
     // Send notification to the channel
     const embed = new EmbedBuilder()
       .setTitle('Commission Closed')
-      .setDescription('This commission has been closed by the artist.')
+      .setDescription('This art stall has been closed by the artist.')
       .setColor(0xff6b6b)
       .setTimestamp();
 
     await interaction.channel.send({ embeds: [embed] });
     
-    await interaction.editReply('Commission closed successfully. This channel will be cleaned up automatically during the next cleanup cycle.');
+    await interaction.editReply('Art Stall closed successfully. This channel will be cleaned up automatically during the next cleanup cycle.');
      // Schedule channel deletion
     setTimeout(async () => {
       try {
@@ -311,11 +311,11 @@ async function createCommissionChannel(guild, user, channelName, config) {
  */
 async function sendCommissionEmbed(channel, user, channelName, commissionId, reps) {
   const embed = new EmbedBuilder()
-    .setTitle(`Commission: ${channelName}`)
-    .setDescription(`Welcome to ${user.displayName}'s commission channel!`)
+    .setTitle(`Art Stall: ${channelName}`)
+    .setDescription(`Welcome to ${user.displayName}'s art stall!`)
     .addFields(
       { name: 'Artist', value: `${user} (${user.tag})`, inline: true },
-      { name: 'Commission Name', value: `\`${channelName}\``, inline: true },
+      { name: 'Art Stall Name', value: `\`${channelName}\``, inline: true },
       { name: 'Created', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
       { name: 'Reps', value: reps.length > 0 ? reps.map(id => `<@${id}>`).join('\n') : 'No reps yet', inline: false }
     )
@@ -353,11 +353,11 @@ async function updateCommissionEmbed(channel, commission, guild) {
     const user = await guild.members.fetch(commission.creatorId);
     
     const embed = new EmbedBuilder()
-      .setTitle(`Commission: ${commission.channelName}`)
-      .setDescription(`Welcome to ${user.displayName}'s commission channel!`)
+      .setTitle(`Art Stall: ${commission.channelName}`)
+      .setDescription(`Welcome to ${user.displayName}'s art stall!`)
       .addFields(
         { name: 'Artist', value: `${user} (${user.user.tag})`, inline: true },
-        { name: 'Commission Name', value: `\`${commission.channelName}\``, inline: true },
+        { name: 'Art Stall Name', value: `\`${commission.channelName}\``, inline: true },
         { name: 'Created', value: `<t:${Math.floor(commission.createdAt.getTime() / 1000)}:R>`, inline: true },
         { name: 'Reps', value: commission.reps.length > 0 ? commission.reps.map(id => `<@${id}>`).join('\n') : 'No reps yet', inline: false }
       )
