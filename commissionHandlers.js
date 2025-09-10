@@ -1,15 +1,15 @@
 const { EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { commissionStorage } = require('./persistantStorage'); // Import the storage
 
 /**
  * Handle the /create-commission slash command
  */
-async function handleCreateCommissionCommand(interaction, activeCommissions, config) {
+async function handleCreateCommissionCommand(interaction, config) {
   const channelName = interaction.options.getString('name').toLowerCase().replace(/[^a-z0-9-_]/g, '');
   const userId = interaction.user.id;
 
-  // Check if user already has an active commission channel
-  const existingCommission = Array.from(activeCommissions.values())
-    .find(c => c.creatorId === userId && c.status === 'active');
+  // Check if user already has an active commission channel using storage
+  const existingCommission = await commissionStorage.getByCreatorId(userId);
   
   if (existingCommission) {
     return interaction.reply({
@@ -31,9 +31,9 @@ async function handleCreateCommissionCommand(interaction, activeCommissions, con
       reason: 'Initial artwork thread for commission channel'
     });
 
-    // Store the commission session
+    // Store the commission session in persistent storage
     const commissionId = `${userId}-${Date.now()}`;
-    activeCommissions.set(commissionId, {
+    const commissionData = {
       id: commissionId,
       creatorId: userId,
       channelId: commissionChannel.id,
@@ -42,7 +42,9 @@ async function handleCreateCommissionCommand(interaction, activeCommissions, con
       reps: [],
       status: 'active',
       createdAt: new Date()
-    });
+    };
+    
+    await commissionStorage.set(commissionId, commissionData);
 
     // Send initial embed to the commission channel
     await sendCommissionEmbed(commissionChannel, interaction.user, channelName, commissionId, []);
@@ -59,13 +61,12 @@ async function handleCreateCommissionCommand(interaction, activeCommissions, con
 /**
  * Handle the /rep slash command
  */
-async function handleRepCommand(interaction, activeCommissions) {
+async function handleRepCommand(interaction) {
   const userId = interaction.user.id;
   const channelId = interaction.channel.id;
 
-  // Find the commission for this channel
-  const commission = Array.from(activeCommissions.values())
-    .find(c => c.channelId === channelId);
+  // Find the commission for this channel using storage
+  const commission = await commissionStorage.getByChannelId(channelId);
 
   if (!commission) {
     return interaction.reply({
@@ -82,11 +83,21 @@ async function handleRepCommand(interaction, activeCommissions) {
     });
   }
 
-  // Add user to reps list
-  commission.reps.push(userId);
+  // Add user to reps list using storage method
+  const added = await commissionStorage.addRep(channelId, userId);
+  
+  if (!added) {
+    return interaction.reply({
+      content: 'Failed to add you as a rep. Please try again.',
+      ephemeral: true
+    });
+  }
+
+  // Get updated commission data
+  const updatedCommission = await commissionStorage.getByChannelId(channelId);
 
   // Update the commission embed
-  await updateCommissionEmbed(interaction.channel, commission, interaction.guild);
+  await updateCommissionEmbed(interaction.channel, updatedCommission, interaction.guild);
 
   await interaction.reply({
     content: 'You have been added as a rep for this artist!',
@@ -97,14 +108,13 @@ async function handleRepCommand(interaction, activeCommissions) {
 /**
  * Handle the /rename-commission slash command
  */
-async function handleRenameCommissionCommand(interaction, activeCommissions, config) {
+async function handleRenameCommissionCommand(interaction, config) {
   const newName = interaction.options.getString('name').toLowerCase().replace(/[^a-z0-9-_]/g, '');
   const userId = interaction.user.id;
   const channelId = interaction.channel.id;
 
-  // Find the commission for this channel
-  const commission = Array.from(activeCommissions.values())
-    .find(c => c.channelId === channelId);
+  // Find the commission for this channel using storage
+  const commission = await commissionStorage.getByChannelId(channelId);
 
   if (!commission) {
     return interaction.reply({
@@ -128,11 +138,13 @@ async function handleRenameCommissionCommand(interaction, activeCommissions, con
     const formattedName = `commission-${newName}`;
     await interaction.channel.setName(formattedName);
     
-    // Update the commission data
-    commission.channelName = newName;
+    // Update the commission data using storage method
+    const updatedCommission = await commissionStorage.updateChannelName(channelId, newName);
 
-    // Update the commission embed
-    await updateCommissionEmbed(interaction.channel, commission, interaction.guild);
+    if (updatedCommission) {
+      // Update the commission embed
+      await updateCommissionEmbed(interaction.channel, updatedCommission, interaction.guild);
+    }
 
     await interaction.editReply(`Channel renamed to "${formattedName}" successfully!`);
 
@@ -140,6 +152,68 @@ async function handleRenameCommissionCommand(interaction, activeCommissions, con
     console.error('Error handling rename-commission command:', error);
     await interaction.editReply('An error occurred while renaming the commission channel. Please try again.');
   }
+}
+
+/**
+ * Handle commission cleanup (inactive channels)
+ */
+async function handleCommissionCleanup(interaction) {
+  const channelId = interaction.channel.id;
+  
+  // Set commission status to inactive
+  await commissionStorage.setStatus(channelId, 'inactive');
+  
+  await interaction.reply({
+    content: 'Commission marked as inactive. Channel will be cleaned up automatically.',
+    ephemeral: true
+  });
+}
+
+/**
+ * Remove a rep from a commission
+ */
+async function handleRemoveRep(interaction, targetUserId) {
+  const channelId = interaction.channel.id;
+  const userId = interaction.user.id;
+
+  // Find the commission for this channel
+  const commission = await commissionStorage.getByChannelId(channelId);
+
+  if (!commission) {
+    return interaction.reply({
+      content: 'This command can only be used in commission channels.',
+      ephemeral: true
+    });
+  }
+
+  // Check if user is the creator of the commission or the target user
+  if (commission.creatorId !== userId && targetUserId !== userId) {
+    return interaction.reply({
+      content: 'Only the commission creator or the rep themselves can remove a rep.',
+      ephemeral: true
+    });
+  }
+
+  // Remove user from reps list using storage method
+  const removed = await commissionStorage.removeRep(channelId, targetUserId);
+  
+  if (!removed) {
+    return interaction.reply({
+      content: 'User is not currently a rep for this artist.',
+      ephemeral: true
+    });
+  }
+
+  // Get updated commission data
+  const updatedCommission = await commissionStorage.getByChannelId(channelId);
+
+  // Update the commission embed
+  await updateCommissionEmbed(interaction.channel, updatedCommission, interaction.guild);
+
+  await interaction.reply({
+    content: `<@${targetUserId}> has been removed as a rep for this artist.`,
+    ephemeral: true
+  });
 }
 
 /**
@@ -241,11 +315,31 @@ async function updateCommissionEmbed(channel, commission, guild) {
   }
 }
 
+/**
+ * Get commission statistics
+ */
+async function getCommissionStats() {
+  const allCommissions = await commissionStorage.values();
+  const activeCount = allCommissions.filter(c => c.status === 'active').length;
+  const inactiveCount = allCommissions.filter(c => c.status === 'inactive').length;
+  const totalReps = allCommissions.reduce((sum, c) => sum + c.reps.length, 0);
+
+  return {
+    total: allCommissions.length,
+    active: activeCount,
+    inactive: inactiveCount,
+    totalReps
+  };
+}
+
 module.exports = {
   handleCreateCommissionCommand,
   handleRepCommand,
   handleRenameCommissionCommand,
+  handleCommissionCleanup,
+  handleRemoveRep,
   createCommissionChannel,
   sendCommissionEmbed,
-  updateCommissionEmbed
+  updateCommissionEmbed,
+  getCommissionStats
 };

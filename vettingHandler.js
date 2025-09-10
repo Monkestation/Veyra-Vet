@@ -1,9 +1,10 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { vettingStorage } = require('./persistantStorage'); // Import the storage
 
 /**
  * Handle approval or denial of vetting requests
  */
-async function handleVettingDecision(interaction, api, activeVettings, config) {
+async function handleVettingDecision(interaction, api, config) {
   // Check if user is admin
   if (!interaction.member.roles.cache.has(config.discord.adminRoleId)) {
     return interaction.reply({
@@ -13,7 +14,9 @@ async function handleVettingDecision(interaction, api, activeVettings, config) {
   }
 
   const [action, vettingId] = interaction.customId.split('_');
-  const vetting = activeVettings.get(vettingId);
+  
+  // Get vetting from storage
+  const vetting = await vettingStorage.get(vettingId);
 
   if (!vetting) {
     return interaction.reply({
@@ -35,9 +38,9 @@ async function handleVettingDecision(interaction, api, activeVettings, config) {
     const user = await interaction.guild.members.fetch(vetting.userId);
     
     if (action === 'approve') {
-      await handleApproval(interaction, api, vetting, user, vettingId, activeVettings);
+      await handleApproval(interaction, api, vetting, user, vettingId);
     } else if (action === 'deny') {
-      await handleDenial(interaction, vetting, user, vettingId, activeVettings);
+      await handleDenial(interaction, vetting, user, vettingId);
     }
 
     // Disable buttons on original message
@@ -52,11 +55,9 @@ async function handleVettingDecision(interaction, api, activeVettings, config) {
 /**
  * Handle vetting approval
  */
-async function handleApproval(interaction, api, vetting, user, vettingId, activeVettings) {
-  // Update vetting status
-  vetting.status = 'approved';
-  vetting.approvedBy = interaction.user.id;
-  vetting.approvedAt = new Date();
+async function handleApproval(interaction, api, vetting, user, vettingId) {
+  // Update vetting status in storage
+  await vettingStorage.updateStatus(vettingId, 'approved', interaction.user.id);
 
   // Update Veyra backend
   await api.createOrUpdateVerification(
@@ -93,7 +94,7 @@ async function handleApproval(interaction, api, vetting, user, vettingId, active
   setTimeout(async () => {
     try {
       await interaction.channel.delete();
-      activeVettings.delete(vettingId);
+      // Note: Don't delete from storage yet - cleanup will handle old approved records
     } catch (error) {
       console.error('Error deleting vetting channel:', error);
     }
@@ -103,11 +104,9 @@ async function handleApproval(interaction, api, vetting, user, vettingId, active
 /**
  * Handle vetting denial
  */
-async function handleDenial(interaction, vetting, user, vettingId, activeVettings) {
-  // Update vetting status
-  vetting.status = 'denied';
-  vetting.deniedBy = interaction.user.id;
-  vetting.deniedAt = new Date();
+async function handleDenial(interaction, vetting, user, vettingId) {
+  // Update vetting status in storage
+  await vettingStorage.updateStatus(vettingId, 'denied', interaction.user.id);
 
   const denialEmbed = new EmbedBuilder()
     .setTitle('Vetting Denied')
@@ -134,11 +133,68 @@ async function handleDenial(interaction, vetting, user, vettingId, activeVetting
   setTimeout(async () => {
     try {
       await interaction.channel.delete();
-      activeVettings.delete(vettingId);
+      // Note: Don't delete from storage yet - cleanup will handle old denied records
     } catch (error) {
       console.error('Error deleting vetting channel:', error);
     }
   }, 60000); // Delete after 1 minute for denials
+}
+
+/**
+ * Create a new vetting request
+ */
+async function createVettingRequest(userId, ckey, evidence, channelId) {
+  // Check if user already has a pending vetting request
+  const existingVetting = await vettingStorage.getByUserId(userId);
+  
+  if (existingVetting) {
+    throw new Error('User already has a pending vetting request');
+  }
+
+  const vettingId = `${userId}-${Date.now()}`;
+  const vettingData = {
+    id: vettingId,
+    userId: userId,
+    ckey: ckey,
+    evidence: evidence,
+    channelId: channelId,
+    status: 'pending',
+    createdAt: new Date()
+  };
+
+  await vettingStorage.set(vettingId, vettingData);
+  return vettingData;
+}
+
+/**
+ * Get all pending vetting requests
+ */
+async function getPendingVettings() {
+  return await vettingStorage.getPendingVettings();
+}
+
+/**
+ * Get vetting statistics
+ */
+async function getVettingStats() {
+  const allVettings = await vettingStorage.values();
+  const pendingCount = allVettings.filter(v => v.status === 'pending').length;
+  const approvedCount = allVettings.filter(v => v.status === 'approved').length;
+  const deniedCount = allVettings.filter(v => v.status === 'denied').length;
+
+  return {
+    total: allVettings.length,
+    pending: pendingCount,
+    approved: approvedCount,
+    denied: deniedCount
+  };
+}
+
+/**
+ * Clean up old vetting records
+ */
+async function cleanupOldVettings() {
+  return await vettingStorage.cleanup();
 }
 
 /**
@@ -172,6 +228,67 @@ async function disableVettingButtons(interaction, vettingId) {
   }
 }
 
+/**
+ * Create vetting embed with buttons
+ */
+async function createVettingEmbed(guild, vetting) {
+  const user = await guild.members.fetch(vetting.userId);
+  
+  const embed = new EmbedBuilder()
+    .setTitle('New Vetting Request')
+    .setDescription(`${user} has submitted a vetting request.`)
+    .addFields(
+      { name: 'User', value: `${user} (${user.user.tag})`, inline: true },
+      { name: 'Ckey', value: `\`${vetting.ckey}\``, inline: true },
+      { name: 'Submitted', value: `<t:${Math.floor(vetting.createdAt.getTime() / 1000)}:R>`, inline: true },
+      { name: 'Evidence', value: vetting.evidence || 'No evidence provided', inline: false }
+    )
+    .setColor(0xf39c12)
+    .setThumbnail(user.user.displayAvatarURL())
+    .setFooter({ text: `Vetting ID: ${vetting.id}` })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`approve_${vetting.id}`)
+        .setLabel('Approve')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`deny_${vetting.id}`)
+        .setLabel('Deny')
+        .setStyle(ButtonStyle.Danger)
+    );
+
+  return { embeds: [embed], components: [row] };
+}
+
+/**
+ * Handle vetting request timeout (auto-deny after X days)
+ */
+async function handleVettingTimeout(vettingId, timeoutDays = 7) {
+  const vetting = await vettingStorage.get(vettingId);
+  
+  if (!vetting || vetting.status !== 'pending') {
+    return false; // Already processed or doesn't exist
+  }
+
+  const timeoutDate = new Date(vetting.createdAt.getTime() + (timeoutDays * 24 * 60 * 60 * 1000));
+  
+  if (new Date() > timeoutDate) {
+    await vettingStorage.updateStatus(vettingId, 'timeout');
+    return true; // Timed out
+  }
+  
+  return false; // Not timed out yet
+}
+
 module.exports = {
-  handleVettingDecision
+  handleVettingDecision,
+  createVettingRequest,
+  getPendingVettings,
+  getVettingStats,
+  cleanupOldVettings,
+  createVettingEmbed,
+  handleVettingTimeout
 };
