@@ -1,169 +1,177 @@
-const { EmbedBuilder } = require('discord.js');
-const { createVettingChannel, sendVettingEmbed } = require('./channelUtils');
-const { 
-  handleCreateCommissionCommand, 
-  handleRepCommand, 
-  handleRenameCommissionCommand 
-} = require('./commissionHandlers');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 /**
- * Handle the /vet slash command
+ * Handle approval or denial of vetting requests
  */
-async function handleVetCommand(interaction, api, activeVettings, config) {
-  const ckey = interaction.options.getString('ckey').toLowerCase().replace(/[^a-z0-9_]/g, '');
-  const userId = interaction.user.id;
-
-  // Check if user already has an active vetting
-  const existingVetting = Array.from(activeVettings.values())
-    .find(v => v.userId === userId && v.status === 'pending');
-  
-  if (existingVetting) {
-    return interaction.reply({
-      content: `You already have an active vetting request in <#${existingVetting.channelId}>`,
-      ephemeral: true
-    });
-  }
-
-  await interaction.deferReply({ ephemeral: true });
-
-  try {
-    // Check if ckey already exists in the system
-    const existingVerification = await api.getVerificationByCkey(ckey);
-    if (existingVerification && existingVerification.verified_flags.age_vetted) {
-      return interaction.editReply(`The ckey "${ckey}" is already age-vetted.`);
-    }
-
-    // Create the vetting channel
-    const vettingChannel = await createVettingChannel(interaction.guild, interaction.user, ckey, config);
-    
-    // Store the vetting session
-    const vettingId = `${userId}-${Date.now()}`;
-    activeVettings.set(vettingId, {
-      id: vettingId,
-      userId: userId,
-      ckey: ckey,
-      channelId: vettingChannel.id,
-      status: 'pending',
-      createdAt: new Date()
-    });
-
-    // Send initial message to the vetting channel
-    await sendVettingEmbed(vettingChannel, interaction.user, ckey, vettingId, config);
-
-    // Reply to the interaction
-    await interaction.editReply(`Vetting request created! Please proceed to <#${vettingChannel.id}>`);
-
-  } catch (error) {
-    console.error('Error handling vet command:', error);
-    await interaction.editReply('An error occurred while creating your vetting request. Please try again.');
-  }
-}
-
-/**
- * Handle the /vetstatus slash command
- */
-async function handleVetStatusCommand(interaction, activeVettings) {
-  const userId = interaction.user.id;
-  const userVetting = Array.from(activeVettings.values())
-    .find(v => v.userId === userId);
-
-  if (!userVetting) {
-    return interaction.reply({
-      content: 'You don\'t have any active vetting requests.',
-      ephemeral: true
-    });
-  }
-
-  const embed = new EmbedBuilder()
-    .setTitle('Your Vetting Status')
-    .addFields(
-      { name: 'Ckey', value: `\`${userVetting.ckey}\``, inline: true },
-      { name: 'Status', value: userVetting.status, inline: true },
-      { name: 'Channel', value: `<#${userVetting.channelId}>`, inline: true },
-      { name: 'Created', value: `<t:${Math.floor(userVetting.createdAt.getTime() / 1000)}:R>`, inline: true }
-    )
-    .setColor(userVetting.status === 'pending' ? 0xf39c12 : userVetting.status === 'approved' ? 0x27ae60 : 0xe74c3c)
-    .setTimestamp();
-
-  await interaction.reply({ embeds: [embed], ephemeral: true });
-}
-
-/**
- * Handle the /vetlist slash command (admin only)
- */
-async function handleVetListCommand(interaction, activeVettings, config) {
+async function handleVettingDecision(interaction, api, activeVettings, config) {
   // Check if user is admin
   if (!interaction.member.roles.cache.has(config.discord.adminRoleId)) {
     return interaction.reply({
-      content: 'You don\'t have permission to use this command.',
+      content: 'You don\'t have permission to approve/deny vetting requests.',
       ephemeral: true
     });
   }
 
-  const pendingVettings = Array.from(activeVettings.values())
-    .filter(v => v.status === 'pending')
-    .sort((a, b) => a.createdAt - b.createdAt);
+  const [action, vettingId] = interaction.customId.split('_');
+  const vetting = activeVettings.get(vettingId);
 
-  if (pendingVettings.length === 0) {
+  if (!vetting) {
     return interaction.reply({
-      content: 'No pending vetting requests.',
+      content: 'This vetting request no longer exists or has already been processed.',
       ephemeral: true
     });
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle('Pending Vetting Requests')
-    .setColor(0x3498db)
-    .setTimestamp();
+  if (vetting.status !== 'pending') {
+    return interaction.reply({
+      content: 'This vetting request has already been processed.',
+      ephemeral: true
+    });
+  }
 
-  const description = pendingVettings.map((vetting, index) => {
-    const user = interaction.guild.members.cache.get(vetting.userId);
-    return `**${index + 1}.** ${user ? user.displayName : 'Unknown User'} - \`${vetting.ckey}\` - <#${vetting.channelId}>`;
-  }).join('\n');
+  await interaction.deferReply();
 
-  embed.setDescription(description || 'No pending requests');
+  try {
+    const user = await interaction.guild.members.fetch(vetting.userId);
+    
+    if (action === 'approve') {
+      await handleApproval(interaction, api, vetting, user, vettingId, activeVettings);
+    } else if (action === 'deny') {
+      await handleDenial(interaction, vetting, user, vettingId, activeVettings);
+    }
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+    // Disable buttons on original message
+    await disableVettingButtons(interaction, vettingId);
+
+  } catch (error) {
+    console.error('Error processing vetting decision:', error);
+    await interaction.editReply('An error occurred while processing the vetting decision.');
+  }
 }
 
 /**
- * Main command router for all slash commands
+ * Handle vetting approval
  */
-async function handleSlashCommand(interaction, api, config) {
-  const { commandName } = interaction;
+async function handleApproval(interaction, api, vetting, user, vettingId, activeVettings) {
+  // Update vetting status
+  vetting.status = 'approved';
+  vetting.approvedBy = interaction.user.id;
+  vetting.approvedAt = new Date();
 
-  switch (commandName) {
-    // Vetting commands
-    case 'vet':
-      return handleVetCommand(interaction, api, config);
-    case 'vetstatus':
-      return handleVetStatusCommand(interaction);
-    case 'vetlist':
-      return handleVetListCommand(interaction, config);
+  // Update Veyra backend
+  await api.createOrUpdateVerification(
+    vetting.userId, 
+    vetting.ckey, 
+    { 
+      vetted: true, 
+      vetted_by: interaction.user.id 
+    }
+  );
 
-    // Commission commands
-    case 'create-commission':
-      return handleCreateCommissionCommand(interaction, config);
-    case 'rep':
-      return handleRepCommand(interaction);
-    case 'rename-commission':
-      return handleRenameCommissionCommand(interaction, config);
+  // Send success message
+  const successEmbed = new EmbedBuilder()
+    .setTitle('Vetting Approved')
+    .setDescription(`${user} has been approved for verification.`)
+    .addFields(
+      { name: 'Ckey', value: `\`${vetting.ckey}\``, inline: true },
+      { name: 'Approved by', value: `${interaction.user}`, inline: true },
+      { name: 'Approved at', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+    )
+    .setColor(0x27ae60)
+    .setTimestamp();
 
-    default:
-      return interaction.reply({
-        content: 'Unknown command.',
-        ephemeral: true
-      });
+  await interaction.editReply({ embeds: [successEmbed] });
+
+  // Notify the user
+  try {
+    await user.send(`Your vetting request for ckey \`${vetting.ckey}\` has been approved, you can now run /verify {ckey} to verify your ID!`);
+  } catch (error) {
+    console.log('Could not DM user about approval');
+  }
+
+  // Schedule channel deletion
+  setTimeout(async () => {
+    try {
+      await interaction.channel.delete();
+      activeVettings.delete(vettingId);
+    } catch (error) {
+      console.error('Error deleting vetting channel:', error);
+    }
+  }, 30000); // Delete after 30 seconds
+}
+
+/**
+ * Handle vetting denial
+ */
+async function handleDenial(interaction, vetting, user, vettingId, activeVettings) {
+  // Update vetting status
+  vetting.status = 'denied';
+  vetting.deniedBy = interaction.user.id;
+  vetting.deniedAt = new Date();
+
+  const denialEmbed = new EmbedBuilder()
+    .setTitle('Vetting Denied')
+    .setDescription(`${user}'s vetting request has been denied.`)
+    .addFields(
+      { name: 'Ckey', value: `\`${vetting.ckey}\``, inline: true },
+      { name: 'Denied by', value: `${interaction.user}`, inline: true },
+      { name: 'Denied at', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+      { name: 'Note', value: 'User can submit a new vetting request if needed.', inline: false }
+    )
+    .setColor(0xe74c3c)
+    .setTimestamp();
+
+  await interaction.editReply({ embeds: [denialEmbed] });
+
+  // Notify the user
+  try {
+    await user.send(`Your vetting request for ckey \`${vetting.ckey}\` has been denied. You may submit a new request with proper documentation if needed.`);
+  } catch (error) {
+    console.log('Could not DM user about denial');
+  }
+
+  // Schedule channel deletion
+  setTimeout(async () => {
+    try {
+      await interaction.channel.delete();
+      activeVettings.delete(vettingId);
+    } catch (error) {
+      console.error('Error deleting vetting channel:', error);
+    }
+  }, 60000); // Delete after 1 minute for denials
+}
+
+/**
+ * Disable the approve/deny buttons on the original vetting message
+ */
+async function disableVettingButtons(interaction, vettingId) {
+  const disabledRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`approve_${vettingId}`)
+        .setLabel('Approved')
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`deny_${vettingId}`)
+        .setLabel('Denied')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(true)
+    );
+
+  // Update the original message
+  const originalMessage = await interaction.channel.messages.fetch({ limit: 50 });
+  const vettingMessage = originalMessage.find(msg => 
+    msg.embeds.length > 0 && 
+    msg.embeds[0].footer && 
+    msg.embeds[0].footer.text.includes(vettingId)
+  );
+
+  if (vettingMessage) {
+    await vettingMessage.edit({ components: [disabledRow] });
   }
 }
 
 module.exports = {
-  handleVetCommand,
-  handleVetStatusCommand,
-  handleVetListCommand,
-  handleSlashCommand,
-  // Re-export commission handlers for direct access if needed
-  handleCreateCommissionCommand,
-  handleRepCommand,
-  handleRenameCommissionCommand
+  handleVettingDecision
 };

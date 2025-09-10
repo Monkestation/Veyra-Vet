@@ -124,5 +124,6 @@ async function handleVetListCommand(interaction, activeVettings, config) {
 module.exports = {
   handleVetCommand,
   handleVetStatusCommand,
-  handleVetListCommand
+  handleVetListCommand,
+  handleSlashCommand,
 };
