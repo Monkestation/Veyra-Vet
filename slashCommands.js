@@ -5,6 +5,7 @@ const { SlashCommandBuilder, REST, Routes } = require('discord.js');
  */
 function getSlashCommands() {
   return [
+    // Existing vetting commands
     new SlashCommandBuilder()
       .setName('vet')
       .setDescription('Request vetting for a ckey')
@@ -14,14 +15,41 @@ function getSlashCommands() {
           .setDescription('Your BYOND ckey')
           .setRequired(true)
       ),
-    
+   
     new SlashCommandBuilder()
       .setName('vetstatus')
       .setDescription('Check the status of your vetting request'),
-    
+   
     new SlashCommandBuilder()
       .setName('vetlist')
-      .setDescription('List all pending vetting requests (Admin only)')
+      .setDescription('List all pending vetting requests (Admin only)'),
+
+    // New commission commands
+    new SlashCommandBuilder()
+      .setName('create-commission')
+      .setDescription('Create a new art commission channel')
+      .addStringOption(option =>
+        option
+          .setName('name')
+          .setDescription('Name for your commission channel')
+          .setRequired(true)
+          .setMaxLength(50)
+      ),
+
+    new SlashCommandBuilder()
+      .setName('rep')
+      .setDescription('Add yourself as a rep for the artist in this commission channel'),
+
+    new SlashCommandBuilder()
+      .setName('rename-commission')
+      .setDescription('Rename your commission channel (creator only)')
+      .addStringOption(option =>
+        option
+          .setName('name')
+          .setDescription('New name for your commission channel')
+          .setRequired(true)
+          .setMaxLength(50)
+      )
   ];
 }
 
