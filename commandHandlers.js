@@ -125,5 +125,4 @@ module.exports = {
   handleVetCommand,
   handleVetStatusCommand,
   handleVetListCommand,
-  handleSlashCommand,
 };
