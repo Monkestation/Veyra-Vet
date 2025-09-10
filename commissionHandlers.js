@@ -195,6 +195,15 @@ async function handleCloseCommissionCommand(interaction) {
     await interaction.channel.send({ embeds: [embed] });
     
     await interaction.editReply('Commission closed successfully. This channel will be cleaned up automatically during the next cleanup cycle.');
+     // Schedule channel deletion
+    setTimeout(async () => {
+      try {
+        await interaction.channel.delete();
+        // Note: Don't delete from storage yet - cleanup will handle old approved records
+      } catch (error) {
+        console.error('Error deleting vetting channel:', error);
+      }
+    }, 30000); // Delete after 30 seconds
 
   } catch (error) {
     console.error('Error handling close-commission command:', error);
