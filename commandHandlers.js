@@ -1,16 +1,16 @@
 const { EmbedBuilder } = require('discord.js');
 const { createVettingChannel, sendVettingEmbed } = require('./channelUtils');
+const { vettingStorage } = require('./persistantStorage'); // Import the storage
 
 /**
  * Handle the /vet slash command
  */
-async function handleVetCommand(interaction, api, activeVettings, config) {
+async function handleVetCommand(interaction, api, config) {
   const ckey = interaction.options.getString('ckey').toLowerCase().replace(/[^a-z0-9_]/g, '');
   const userId = interaction.user.id;
 
   // Check if user already has an active vetting
-  const existingVetting = Array.from(activeVettings.values())
-    .find(v => v.userId === userId && v.status === 'pending');
+  const existingVetting = await vettingStorage.getByUserId(userId);
   
   if (existingVetting) {
     return interaction.reply({
@@ -31,16 +31,18 @@ async function handleVetCommand(interaction, api, activeVettings, config) {
     // Create the vetting channel
     const vettingChannel = await createVettingChannel(interaction.guild, interaction.user, ckey, config);
     
-    // Store the vetting session
+    // Create vetting request in storage
     const vettingId = `${userId}-${Date.now()}`;
-    activeVettings.set(vettingId, {
+    const vettingData = {
       id: vettingId,
       userId: userId,
       ckey: ckey,
       channelId: vettingChannel.id,
       status: 'pending',
       createdAt: new Date()
-    });
+    };
+
+    await vettingStorage.set(vettingId, vettingData);
 
     // Send initial message to the vetting channel
     await sendVettingEmbed(vettingChannel, interaction.user, ckey, vettingId, config);
@@ -57,10 +59,9 @@ async function handleVetCommand(interaction, api, activeVettings, config) {
 /**
  * Handle the /vetstatus slash command
  */
-async function handleVetStatusCommand(interaction, activeVettings) {
+async function handleVetStatusCommand(interaction) {
   const userId = interaction.user.id;
-  const userVetting = Array.from(activeVettings.values())
-    .find(v => v.userId === userId);
+  const userVetting = await vettingStorage.getByUserId(userId);
 
   if (!userVetting) {
     return interaction.reply({
@@ -86,7 +87,7 @@ async function handleVetStatusCommand(interaction, activeVettings) {
 /**
  * Handle the /vetlist slash command (admin only)
  */
-async function handleVetListCommand(interaction, activeVettings, config) {
+async function handleVetListCommand(interaction, config) {
   // Check if user is admin
   if (!interaction.member.roles.cache.has(config.discord.adminRoleId)) {
     return interaction.reply({
@@ -95,9 +96,7 @@ async function handleVetListCommand(interaction, activeVettings, config) {
     });
   }
 
-  const pendingVettings = Array.from(activeVettings.values())
-    .filter(v => v.status === 'pending')
-    .sort((a, b) => a.createdAt - b.createdAt);
+  const pendingVettings = await vettingStorage.getPendingVettings();
 
   if (pendingVettings.length === 0) {
     return interaction.reply({
@@ -105,6 +104,9 @@ async function handleVetListCommand(interaction, activeVettings, config) {
       ephemeral: true
     });
   }
+
+  // Sort by creation date (oldest first)
+  pendingVettings.sort((a, b) => a.createdAt - b.createdAt);
 
   const embed = new EmbedBuilder()
     .setTitle('Pending Vetting Requests')
