@@ -9,7 +9,8 @@ const config = {
     guildId: process.env.DISCORD_GUILD_ID,
     adminRoleId: process.env.DISCORD_ADMIN_ROLE_ID,
     vettingCategoryId: process.env.DISCORD_VETTING_CATEGORY_ID,
-    commissionCategoryId: process.env.COMMISSION_CATEGORY_ID
+    commissionCategoryId: process.env.COMMISSION_CATEGORY_ID,
+    commissionRoleId: process.env.DISCORD_MAIN_ROLE_ID
   },
   veyra: {
     baseUrl: process.env.VEYRA_API_BASE_URL,

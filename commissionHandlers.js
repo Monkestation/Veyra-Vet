@@ -276,100 +276,303 @@ async function handleRemoveRep(interaction, targetUserId) {
 /**
  * Create a commission channel for the user
  */
+/**
+ * Create a commission channel for the user
+ */
 async function createCommissionChannel(guild, user, channelName, config) {
-  const formattedChannelName = `${channelName}`;
-  
-  const channel = await guild.channels.create({
-    name: formattedChannelName,
-    type: ChannelType.GuildText,
-    parent: config.discord.commissionCategoryId || null,
-    permissionOverwrites: [
-      {
-        id: guild.roles.everyone,
-        deny: [PermissionFlagsBits.SendMessages],
-        allow: [PermissionFlagsBits.ViewChannel]
-      },
-      {
-        id: user.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.CreatePrivateThreads,
-          PermissionFlagsBits.CreatePublicThreads,
-          PermissionFlagsBits.SendMessagesInThreads
+    const formattedChannelName = `${channelName}`;
+    
+    const channel = await guild.channels.create({
+        name: formattedChannelName,
+        type: ChannelType.GuildText,
+        parent: config.discord.commissionCategoryId || null,
+        permissionOverwrites: [
+            {
+                id: guild.roles.everyone,
+                deny: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages
+                ]
+            },
+            {
+                id: config.discord.commissionRoleId, // Add this to your config
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.ReadMessageHistory
+                ],
+                deny: [PermissionFlagsBits.SendMessages]
+            },
+            {
+                id: user.id,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.CreatePrivateThreads,
+                    PermissionFlagsBits.CreatePublicThreads,
+                    PermissionFlagsBits.SendMessagesInThreads
+                ]
+            }
         ]
-      }
-    ]
-  });
+    });
 
-  return channel;
+    return channel;
 }
 
 /**
  * Send the initial commission embed
  */
+
+/**
+ * Send the initial commission embed with rep button
+ */
 async function sendCommissionEmbed(channel, user, channelName, commissionId, reps) {
-  const embed = new EmbedBuilder()
-    .setTitle(`Art Stall: ${channelName}`)
-    .setDescription(`Welcome to ${user.displayName}'s art stall!`)
-    .addFields(
-      { name: 'Artist', value: `${user} (${user.tag})`, inline: true },
-      { name: 'Art Stall Name', value: `\`${channelName}\``, inline: true },
-      { name: 'Created', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
-      { name: 'Reps', value: reps.length > 0 ? reps.map(id => `<@${id}>`).join('\n') : 'No reps yet', inline: false }
-    )
-    .setColor(0x9b59b6)
-    .setThumbnail(user.displayAvatarURL())
-    .setFooter({ text: `Commission ID: ${commissionId}` });
+    const embed = new EmbedBuilder()
+        .setTitle(`Art Stall: ${channelName}`)
+        .setDescription(`Welcome to ${user.displayName}'s art stall!`)
+        .addFields(
+            { name: 'Artist', value: `${user} (${user.tag})`, inline: true },
+            { name: 'Art Stall Name', value: `\`${channelName}\``, inline: true },
+            { name: 'Created', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+            { name: 'Reps', value: reps.length > 0 ? reps.map(id => `<@${id}>`).join('\n') : 'No reps yet', inline: false }
+        )
+        .setColor(0x9b59b6)
+        .setThumbnail(user.displayAvatarURL())
+        .setFooter({ text: `Commission ID: ${commissionId}` });
 
-  const message = await channel.send({
-    embeds: [embed]
-  });
+    // Create button row
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId(`rep_add_${commissionId}`)
+                .setLabel('Become a Rep')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('📝'),
+            new ButtonBuilder()
+                .setCustomId(`rep_remove_${commissionId}`)
+                .setLabel('Remove Rep')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('❌')
+        );
 
-  // Pin the message
-  await message.pin();
+    const message = await channel.send({
+        embeds: [embed],
+        components: [row]
+    });
 
-  return message;
+    // Pin the message
+    await message.pin();
+
+    return message;
 }
 
 /**
  * Update the commission embed with new rep information
  */
 async function updateCommissionEmbed(channel, commission, guild) {
-  try {
-    // Get the pinned messages to find our embed
-    const pinnedMessages = await channel.messages.fetchPinned();
-    const embedMessage = pinnedMessages.find(msg => 
-      msg.embeds.length > 0 && 
-      msg.embeds[0].footer?.text?.includes(commission.id)
-    );
+    try {
+        // Get the pinned messages to find our embed
+        const pinnedMessages = await channel.messages.fetchPinned();
+        const embedMessage = pinnedMessages.find(msg =>
+            msg.embeds.length > 0 &&
+            msg.embeds[0].footer?.text?.includes(commission.id)
+        );
 
-    if (!embedMessage) {
-      console.log('Could not find commission embed to update');
-      return;
+        if (!embedMessage) {
+            console.log('Could not find commission embed to update');
+            return;
+        }
+
+        const user = await guild.members.fetch(commission.creatorId);
+
+        const embed = new EmbedBuilder()
+            .setTitle(`Art Stall: ${commission.channelName}`)
+            .setDescription(`Welcome to ${user.displayName}'s art stall!`)
+            .addFields(
+                { name: 'Artist', value: `${user} (${user.user.tag})`, inline: true },
+                { name: 'Art Stall Name', value: `\`${commission.channelName}\``, inline: true },
+                { name: 'Created', value: `<t:${Math.floor(commission.createdAt.getTime() / 1000)}:R>`, inline: true },
+                { name: 'Reps', value: commission.reps.length > 0 ? commission.reps.map(id => `<@${id}>`).join('\n') : 'No reps yet', inline: false }
+            )
+            .setColor(0x9b59b6)
+            .setThumbnail(user.user.displayAvatarURL())
+            .setFooter({ text: `Commission ID: ${commission.id}` });
+
+        // Keep the same buttons
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`rep_add_${commission.id}`)
+                    .setLabel('Become a Rep')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('📝'),
+                new ButtonBuilder()
+                    .setCustomId(`rep_remove_${commission.id}`)
+                    .setLabel('Remove Rep')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('❌')
+            );
+
+        await embedMessage.edit({ embeds: [embed], components: [row] });
+
+    } catch (error) {
+        console.error('Error updating commission embed:', error);
+    }
+}
+
+/**
+ * Handle rep button interactions
+ */
+async function handleRepButtonInteraction(interaction) {
+    const [action, actionType, commissionId] = interaction.customId.split('_');
+    const userId = interaction.user.id;
+
+    if (action !== 'rep') return false; // Not a rep button
+
+    // Find the commission
+    const commission = await commissionStorage.get(commissionId);
+    if (!commission) {
+        return interaction.reply({
+            content: 'Commission not found. This may be an old button.',
+            ephemeral: true
+        });
     }
 
-    const user = await guild.members.fetch(commission.creatorId);
-    
-    const embed = new EmbedBuilder()
-      .setTitle(`Art Stall: ${commission.channelName}`)
-      .setDescription(`Welcome to ${user.displayName}'s art stall!`)
-      .addFields(
-        { name: 'Artist', value: `${user} (${user.user.tag})`, inline: true },
-        { name: 'Art Stall Name', value: `\`${commission.channelName}\``, inline: true },
-        { name: 'Created', value: `<t:${Math.floor(commission.createdAt.getTime() / 1000)}:R>`, inline: true },
-        { name: 'Reps', value: commission.reps.length > 0 ? commission.reps.map(id => `<@${id}>`).join('\n') : 'No reps yet', inline: false }
-      )
-      .setColor(0x9b59b6)
-      .setThumbnail(user.user.displayAvatarURL())
-      .setFooter({ text: `Commission ID: ${commission.id}` });
+    if (actionType === 'add') {
+        // Check if user is already a rep
+        if (commission.reps.includes(userId)) {
+            return interaction.reply({
+                content: 'You are already registered as a rep for this artist.',
+                ephemeral: true
+            });
+        }
 
-    await embedMessage.edit({ embeds: [embed] });
+        // Add user to reps list
+        const added = await commissionStorage.addRep(commission.channelId, userId);
+        
+        if (!added) {
+            return interaction.reply({
+                content: 'Failed to add you as a rep. Please try again.',
+                ephemeral: true
+            });
+        }
 
-  } catch (error) {
-    console.error('Error updating commission embed:', error);
-  }
+        // Get updated commission data
+        const updatedCommission = await commissionStorage.get(commissionId);
+
+        // Update the commission embed
+        await updateCommissionEmbed(interaction.channel, updatedCommission, interaction.guild);
+
+        await interaction.reply({
+            content: 'You have been added as a rep for this artist!',
+            ephemeral: true
+        });
+
+    } else if (actionType === 'remove') {
+        // Check if user is a rep or the commission creator
+        if (!commission.reps.includes(userId) && commission.creatorId !== userId) {
+            return interaction.reply({
+                content: 'You are not currently a rep for this artist.',
+                ephemeral: true
+            });
+        }
+
+        // If user is commission creator, they can remove any rep
+        let targetUserId = userId;
+        if (commission.creatorId === userId && commission.reps.length > 0) {
+            // For simplicity, remove the user themselves if they're a rep, 
+            // or you could add a select menu for the creator to choose which rep to remove
+            if (!commission.reps.includes(userId)) {
+                return interaction.reply({
+                    content: 'As the artist, you can only remove yourself if you\'re a rep, or contact an admin to remove specific reps.',
+                    ephemeral: true
+                });
+            }
+        }
+
+        // Remove user from reps list
+        const removed = await commissionStorage.removeRep(commission.channelId, targetUserId);
+
+        if (!removed) {
+            return interaction.reply({
+                content: 'You are not currently a rep for this artist.',
+                ephemeral: true
+            });
+        }
+
+        // Get updated commission data
+        const updatedCommission = await commissionStorage.get(commissionId);
+
+        // Update the commission embed
+        await updateCommissionEmbed(interaction.channel, updatedCommission, interaction.guild);
+
+        await interaction.reply({
+            content: 'You have been removed as a rep for this artist.',
+            ephemeral: true
+        });
+    }
+
+    return true; // Handled
+}
+
+/**
+ * Retroactively add buttons to existing commission embeds
+ */
+async function addButtonsToExistingCommissions(guild, config) {
+    try {
+        console.log('Adding buttons to existing commission embeds...');
+        
+        const allCommissions = await commissionStorage.values();
+        const activeCommissions = allCommissions.filter(c => c.status === 'active');
+        
+        let updatedCount = 0;
+        
+        for (const commission of activeCommissions) {
+            try {
+                const channel = await guild.channels.fetch(commission.channelId);
+                if (!channel) continue;
+                
+                const pinnedMessages = await channel.messages.fetchPinned();
+                const embedMessage = pinnedMessages.find(msg =>
+                    msg.embeds.length > 0 &&
+                    msg.embeds[0].footer?.text?.includes(commission.id)
+                );
+                
+                if (embedMessage && (!embedMessage.components || embedMessage.components.length === 0)) {
+                    // Message exists but has no buttons, add them
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`rep_add_${commission.id}`)
+                                .setLabel('Become a Rep')
+                                .setStyle(ButtonStyle.Primary)
+                                .setEmoji('📝'),
+                            new ButtonBuilder()
+                                .setCustomId(`rep_remove_${commission.id}`)
+                                .setLabel('Remove Rep')
+                                .setStyle(ButtonStyle.Danger)
+                                .setEmoji('❌')
+                        );
+                    
+                    await embedMessage.edit({
+                        embeds: embedMessage.embeds,
+                        components: [row]
+                    });
+                    
+                    updatedCount++;
+                }
+            } catch (error) {
+                console.error(`Error updating commission ${commission.id}:`, error);
+            }
+        }
+        
+        console.log(`Added buttons to ${updatedCount} existing commission embeds`);
+        return updatedCount;
+        
+    } catch (error) {
+        console.error('Error adding buttons to existing commissions:', error);
+        return 0;
+    }
 }
 
 /**
@@ -399,5 +602,7 @@ module.exports = {
   createCommissionChannel,
   sendCommissionEmbed,
   updateCommissionEmbed,
-  getCommissionStats
+  getCommissionStats,
+  handleRepButtonInteraction,
+  addButtonsToExistingCommissions
 };

@@ -3,7 +3,7 @@ const VeyraAPI = require('./VeyraAPI');
 const { registerSlashCommands } = require('./slashCommands');
 const { handleVetCommand, handleVetStatusCommand, handleVetListCommand } = require('./commandHandlers');
 const { handleVettingDecision } = require('./vettingHandler');
-const { handleCreateCommissionCommand, handleRepCommand, handleRenameCommissionCommand, handleCloseCommissionCommand } = require('./commissionHandlers');
+const { handleRepButtonInteraction, addButtonsToExistingCommissions, handleCreateCommissionCommand, handleRepCommand, handleRenameCommissionCommand, handleCloseCommissionCommand } = require('./commissionHandlers');
 // Import storage systems
 const { vettingStorage, commissionStorage } = require('./persistantStorage');
 
@@ -72,6 +72,9 @@ class VettingBot {
         if (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('deny_')) {
           await handleVettingDecision(interaction, this.api, this.config);
         }
+        else if (interaction.customId.startsWith('rep_')) {
+            await handleRepButtonInteraction(interaction);
+        }
       }
     });
 
@@ -124,6 +127,9 @@ class VettingBot {
         case 'close-commission':
           await handleCloseCommissionCommand(interaction);
           break;
+        case 'add-buttons':
+          await this.handleAddButtonsCommand(interaction);
+          break;
 
         // Admin commands
         case 'cleanup':
@@ -154,6 +160,26 @@ class VettingBot {
     }
   }
 
+  async handleAddButtonsCommand(interaction) {
+    // Check if user is admin
+    if (!interaction.member.roles.cache.has(this.config.discord.adminRoleId)) {
+        return interaction.reply({
+            content: 'You don\'t have permission to use this command.',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+        const updatedCount = await addButtonsToExistingCommissions(interaction.guild, this.config);
+        await interaction.editReply(`Added buttons to ${updatedCount} existing commission embeds.`);
+    } catch (error) {
+        console.error('Error adding buttons to existing commissions:', error);
+        await interaction.editReply('An error occurred while adding buttons to existing commissions.');
+    }
+  }
+  
   /**
    * Handle the cleanup command (admin only)
    */

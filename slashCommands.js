@@ -53,7 +53,11 @@ function getSlashCommands() {
 
     new SlashCommandBuilder()
       .setName('close-commission')
-      .setDescription('Close your commission channel (creator only)')
+      .setDescription('Close your commission channel (creator only)'),
+
+    new SlashCommandBuilder()
+      .setName('add-buttons')
+      .setDescription('Add buttons to existing commission embeds (Admin only)'),
   ];
 }
 
