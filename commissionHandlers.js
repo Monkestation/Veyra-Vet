@@ -59,13 +59,12 @@ async function handleCreateCommissionCommand(interaction, activeCommissions, con
 /**
  * Handle the /rep slash command
  */
-async function handleRepCommand(interaction, activeCommissions) {
+async function handleRepCommand(interaction) {
   const userId = interaction.user.id;
   const channelId = interaction.channel.id;
 
   // Find the commission for this channel
-  const commission = Array.from(activeCommissions.values())
-    .find(c => c.channelId === channelId);
+  const commission = await commissionStorage.getByChannelId(channelId);
 
   if (!commission) {
     return interaction.reply({
@@ -83,10 +82,18 @@ async function handleRepCommand(interaction, activeCommissions) {
   }
 
   // Add user to reps list
-  commission.reps.push(userId);
+  const success = await commissionStorage.addRep(channelId, userId);
+  
+  if (!success) {
+    return interaction.reply({
+      content: 'Failed to add you as a rep. Please try again.',
+      ephemeral: true
+    });
+  }
 
   // Update the commission embed
-  await updateCommissionEmbed(interaction.channel, commission, interaction.guild);
+  const updatedCommission = await commissionStorage.getByChannelId(channelId);
+  await updateCommissionEmbed(interaction.channel, updatedCommission, interaction.guild);
 
   await interaction.reply({
     content: 'You have been added as a rep for this artist!',

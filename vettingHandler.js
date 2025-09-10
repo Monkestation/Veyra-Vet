@@ -129,25 +129,25 @@ async function handleVetListCommand(interaction, activeVettings, config) {
 /**
  * Main command router for all slash commands
  */
-async function handleSlashCommand(interaction, api, activeVettings, activeCommissions, config) {
+async function handleSlashCommand(interaction, api, config) {
   const { commandName } = interaction;
 
   switch (commandName) {
     // Vetting commands
     case 'vet':
-      return handleVetCommand(interaction, api, activeVettings, config);
+      return handleVetCommand(interaction, api, config);
     case 'vetstatus':
-      return handleVetStatusCommand(interaction, activeVettings);
+      return handleVetStatusCommand(interaction);
     case 'vetlist':
-      return handleVetListCommand(interaction, activeVettings, config);
+      return handleVetListCommand(interaction, config);
 
     // Commission commands
     case 'create-commission':
-      return handleCreateCommissionCommand(interaction, activeCommissions, config);
+      return handleCreateCommissionCommand(interaction, config);
     case 'rep':
-      return handleRepCommand(interaction, activeCommissions);
+      return handleRepCommand(interaction);
     case 'rename-commission':
-      return handleRenameCommissionCommand(interaction, activeCommissions, config);
+      return handleRenameCommissionCommand(interaction, config);
 
     default:
       return interaction.reply({
