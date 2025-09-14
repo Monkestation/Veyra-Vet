@@ -58,7 +58,7 @@ async function sendVettingEmbed(channel, user, ckey, vettingId, config) {
             '4. You are in the middle of roleplay, and another player does something that breaks immersion (metagaming, powergaming, etc.). How do you respond?\n\n' +
             '5. What is the difference between your characters knowledge and your own knowledge as a player? Can you give an example?\n\n' +
             '6. How did you find out about Noctra?\n\n' +
-            '7. Have you ever been banned on any other SS13 server? If so, why?\n\n',
+            '7. Have you ever been banned on any other SS13 server? If so, why?',
           inline: false
         }
     )
