@@ -1,5 +1,7 @@
 # Veyra Vetting Bot
 A Discord bot for handling the most commmon method of vetting for servers. 
+This is not the id half of the system, this is a basic age vet because thats what most servers do for the better implementation see:
+[Veyra Bot](https://github.com/Monkestation/Veyra-Bot)
 
 ## Features
 
